@@ -64,46 +64,18 @@ public class TelegramBot extends TelegramLongPollingBot {
                     sendMessage(chatId, "Sorry, command does not exist");
             }
         } else if(update.hasCallbackQuery()){
-            String callBD = update.getCallbackQuery().getData();
             long mesId = update.getCallbackQuery().getMessage().getMessageId();
             long chatId = update.getCallbackQuery().getMessage().getChatId();
-
-            System.out.println(places);
-
-            switch (callBD) {
-                case "Call_1":
-                    EditMessageText message = new EditMessageText();
-                    message.setChatId(String.valueOf(chatId));
-                    message.setText("Call1");
-                    message.setMessageId((int)mesId);
-                    try {
-                        execute(message);
-                    } catch (TelegramApiException e) {
-                        throw new RuntimeException(e);
-                    }
-                    break;
-                case "Call_2":
-                    EditMessageText message2 = new EditMessageText();
-                    message2.setChatId(String.valueOf(chatId));
-                    message2.setText("Call2");
-                    message2.setMessageId((int)mesId);
-                    try {
-                        execute(message2);
-                    } catch (TelegramApiException e) {
-                        throw new RuntimeException(e);
-                    }
-                    break;
-                case "Call_3":
-                    EditMessageText message3 = new EditMessageText();
-                    message3.setChatId(String.valueOf(chatId));
-                    message3.setText("Call3");
-                    message3.setMessageId((int)mesId);
-                    try {
-                        execute(message3);
-                    } catch (TelegramApiException e) {
-                        throw new RuntimeException(e);
-                    }
-                    break;
+            EditMessageText mes = new EditMessageText();
+            mes.setMessageId((int)mesId);
+            mes.setChatId(String.valueOf(chatId));
+            String call = update.getCallbackQuery().getData();
+            int i  = Integer.parseInt(call);
+            mes.setText(getButtonText(update, i));
+            try {
+                execute(mes);
+            } catch (TelegramApiException e) {
+                throw new RuntimeException(e);
             }
         }
     }
@@ -131,6 +103,9 @@ public class TelegramBot extends TelegramLongPollingBot {
         } catch (TelegramApiException e) {
             throw new RuntimeException(e);
         }
+    }
+    private String getButtonText(Update update, int i){
+        return update.getCallbackQuery().getMessage().getReplyMarkup().getKeyboard().get(--i).get(0).getText();
     }
     private void sendMessage(long chatId, String toSend) {
         SendMessage mes = new SendMessage();
@@ -174,13 +149,12 @@ public class TelegramBot extends TelegramLongPollingBot {
             }
 
         }
-        System.out.println(ans);
         return ans;
     }
     private List<InlineKeyboardButton>getButtonRow(List<InlineKeyboardButton> r, String s, int i){
         var button = new InlineKeyboardButton();
         button.setText(s);
-        button.setCallbackData("Call_" + i);
+        button.setCallbackData(String.valueOf(i));
         r.add(button);
         return r;
     }
