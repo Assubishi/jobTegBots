@@ -20,10 +20,11 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 
+
 @Component
 public class TelegramBot extends TelegramLongPollingBot {
     final BotConfig config;
-    final String apiKey= "AIzaSyCAmKukCkraQx42eiVu06NIQeyRuHtHYjI";
+    final String API_KEY = "AIzaSyCAmKukCkraQx42eiVu06NIQeyRuHtHYjI";
     public TelegramBot(BotConfig config) {
         this.config = config;
     }
@@ -38,21 +39,25 @@ public class TelegramBot extends TelegramLongPollingBot {
         return config.getToken();
     }
 
+    //method to do action when update received from user
     @Override
     public void onUpdateReceived(Update update) {
+        //a container for nearby locations
 
         ArrayList<String> places = new ArrayList<>();
+        //upon receive of geolocation tries to find nearby locations
         if (update.hasMessage() && update.getMessage().hasLocation()) {
             Location location = update.getMessage().getLocation();
             long chatId = update.getMessage().getChatId();
             try {
-                places = getNearbyPlaces(apiKey, location.getLatitude(), location.getLongitude(), 50);
+                places = getNearbyPlaces(config.getApiKey(), location.getLatitude(), location.getLongitude(), 50);
                 sendPlaces(chatId, places);
             } catch (IOException e) {
                 sendMessage(chatId, "Error while fetching nearest addresses.");
             }
-
-        } else if (update.hasMessage() && update.getMessage().hasText()) {
+        }
+        //welcomes user by their name
+        else if (update.hasMessage() && update.getMessage().hasText()) {
             String messageText = update.getMessage().getText();
             long chatId = update.getMessage().getChatId();
             switch (messageText) {
@@ -63,14 +68,16 @@ public class TelegramBot extends TelegramLongPollingBot {
                 default:
                     sendMessage(chatId, "Sorry, command does not exist");
             }
-        } else if(update.hasCallbackQuery()){
+        }
+        // else tries to give the full text of location if button is pressed
+        else if(update.hasCallbackQuery()){
             long mesId = update.getCallbackQuery().getMessage().getMessageId();
             long chatId = update.getCallbackQuery().getMessage().getChatId();
+
             EditMessageText mes = new EditMessageText();
             mes.setMessageId((int)mesId);
             mes.setChatId(String.valueOf(chatId));
-            String call = update.getCallbackQuery().getData();
-            int i  = Integer.parseInt(call);
+            int i = Integer.parseInt(update.getCallbackQuery().getData());
             mes.setText(getButtonText(update, i));
             try {
                 execute(mes);
@@ -80,52 +87,60 @@ public class TelegramBot extends TelegramLongPollingBot {
         }
     }
 
+    //method to create buttons with found nearby locations
     private void sendPlaces(long chatId, ArrayList<String> toSend) {
         SendMessage mes = new SendMessage();
         mes.setChatId(String.valueOf(chatId));
-        mes.setText("Please, choose one of these addresses!");
-        InlineKeyboardMarkup buttonInLine = new InlineKeyboardMarkup();
-        List<List<InlineKeyboardButton>> rows = new ArrayList<>();
-        List<InlineKeyboardButton> row = new ArrayList<>();
-        List<InlineKeyboardButton> row2 = new ArrayList<>();
-        List<InlineKeyboardButton> row3 = new ArrayList<>();
-        row = getButtonRow(row, toSend.get(0), 1);
-        row2 = getButtonRow(row2, toSend.get(1), 2);
-        row3 = getButtonRow(row3, toSend.get(2), 3);
-        rows.add(row);
-        rows.add(row2);
-        rows.add(row3);
+        //check for empty array
+        if(toSend.isEmpty()){
+            mes.setText("Please, choose another location! No nearby addresses were found.");
+        }
+        //else create a list of buttons with nearby locations
+        else {
+            mes.setText("Please, choose one of these addresses!");
+            InlineKeyboardMarkup buttonInLine = new InlineKeyboardMarkup();
+            List<List<InlineKeyboardButton>> rows = new ArrayList<>();
+            for(int i = 1; i <= toSend.size() && i <= 3; i++){
+                List<InlineKeyboardButton> row = new ArrayList<>();
+                getButtonRow(row, toSend.get(i-1), i);
+                rows.add(row);
+            }
 
-        buttonInLine.setKeyboard(rows);
-        mes.setReplyMarkup(buttonInLine);
+            buttonInLine.setKeyboard(rows);
+            mes.setReplyMarkup(buttonInLine);
+        }
         try {
             execute(mes);
         } catch (TelegramApiException e) {
             throw new RuntimeException(e);
         }
     }
+
+    //extracts address as text from chosen button by user
     private String getButtonText(Update update, int i){
         return update.getCallbackQuery().getMessage().getReplyMarkup().getKeyboard().get(--i).get(0).getText();
     }
+
+    //method to send message
     private void sendMessage(long chatId, String toSend) {
         SendMessage mes = new SendMessage();
         mes.setChatId(String.valueOf(chatId));
         mes.setText(toSend);
-            try {
-                execute(mes);
-            } catch (TelegramApiException e) {
-                throw new RuntimeException(e);
-            }
+        try {
+            execute(mes);
+        } catch (TelegramApiException e) {
+            throw new RuntimeException(e);
+        }
     }
 
-
+    //method to search for nearby locations via google maps
     private static ArrayList<String> getNearbyPlaces(String apiKey, double latitude, double longitude, int radius) throws IOException {
-        String nearbySearchUrl = "https://maps.googleapis.com/maps/api/place/nearbysearch/json?" +
+        final String NEARBY_SEARCH_URL = "https://maps.googleapis.com/maps/api/place/nearbysearch/json?" +
                 "location=" + latitude + "," + longitude +
                 "&radius=" + radius +
                 "&key=" + apiKey;
 
-        URL url = new URL(nearbySearchUrl);
+        URL url = new URL(NEARBY_SEARCH_URL);
         Scanner scanner = new Scanner(url.openStream());
         String response = scanner.useDelimiter("\\A").next();
         scanner.close();
@@ -142,21 +157,25 @@ public class TelegramBot extends TelegramLongPollingBot {
                 double placeLng = location.get("lng").getAsDouble();
                 String placeName = place.get("name").getAsString();
                 String vic = place.get("vicinity").getAsString();
-                StringBuilder nearbyPlacesBuilder = new StringBuilder();
-                nearbyPlacesBuilder.append("Place: ").append(placeName).append(", Vicinity: ").append(vic).append("\n");
-                nearbyPlacesBuilder.append("Latitude: ").append(placeLat).append(", Longitude: ").append(placeLng).append("\n\n");
-                ans.add(nearbyPlacesBuilder.toString());
+                String nearbyPlacesBuilder = "Place: " + placeName + ", Vicinity: " + vic + "\n" +
+                        "Latitude: " + placeLat + ", Longitude: " + placeLng + "\n\n";
+                ans.add(nearbyPlacesBuilder);
             }
 
         }
         return ans;
     }
-    private List<InlineKeyboardButton>getButtonRow(List<InlineKeyboardButton> r, String s, int i){
+
+    //method to create a button
+    private void getButtonRow(List<InlineKeyboardButton> r, String s, int i){
         var button = new InlineKeyboardButton();
-        button.setText(s);
+        if(!s.isEmpty()){
+            button.setText(s);
+        }else{
+            button.setText("No address was found.");
+        }
         button.setCallbackData(String.valueOf(i));
         r.add(button);
-        return r;
     }
 }
 
