@@ -2,13 +2,20 @@ package io.test.testAssylzhanBot.service;
 import io.test.testAssylzhanBot.config.BotConfig;
 import org.springframework.stereotype.Component;
 import org.telegram.telegrambots.bots.TelegramLongPollingBot;
+import org.telegram.telegrambots.meta.api.methods.send.SendLocation;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
 import org.telegram.telegrambots.meta.api.methods.updatingmessages.EditMessageText;
 import org.telegram.telegrambots.meta.api.objects.Location;
 import org.telegram.telegrambots.meta.api.objects.Update;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.InlineKeyboardMarkup;
+import org.telegram.telegrambots.meta.api.objects.replykeyboard.ReplyKeyboardMarkup;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.InlineKeyboardButton;
+import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.KeyboardButton;
+import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.KeyboardRow;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
+import com.google.maps.GeoApiContext;
+import com.google.maps.GeocodingApi;
+import com.google.maps.model.GeocodingResult;
 import java.util.*;
 
 import java.io.IOException;
@@ -24,8 +31,8 @@ import com.google.gson.JsonParser;
 @Component
 public class TelegramBot extends TelegramLongPollingBot {
     final BotConfig config;
-    final String API_KEY = "AIzaSyCAmKukCkraQx42eiVu06NIQeyRuHtHYjI";
     public TelegramBot(BotConfig config) {
+
         this.config = config;
     }
 
@@ -44,7 +51,7 @@ public class TelegramBot extends TelegramLongPollingBot {
     public void onUpdateReceived(Update update) {
         //a container for nearby locations
 
-        ArrayList<String> places = new ArrayList<>();
+        ArrayList<String> places;
         //upon receive of geolocation tries to find nearby locations
         if (update.hasMessage() && update.getMessage().hasLocation()) {
             Location location = update.getMessage().getLocation();
@@ -63,7 +70,7 @@ public class TelegramBot extends TelegramLongPollingBot {
             switch (messageText) {
                 case "/start":
                     String ans = "Welcome to this bot, " + update.getMessage().getChat().getFirstName() + "!!!" + "\n" + "Please send your geoposition!";
-                    sendMessage(chatId, ans);
+                    sendMessageStart(chatId, ans);
                     break;
                 default:
                     sendMessage(chatId, "Sorry, command does not exist");
@@ -132,13 +139,36 @@ public class TelegramBot extends TelegramLongPollingBot {
             throw new RuntimeException(e);
         }
     }
+    private void sendMessageStart(long chatId, String toSend) {
+        SendMessage mes = new SendMessage();
+        mes.setChatId(String.valueOf(chatId));
+        mes.setText(toSend);
+
+        ReplyKeyboardMarkup keyboardMarkup = new ReplyKeyboardMarkup();
+        List<KeyboardRow> keyboardRows = new ArrayList<>();
+        KeyboardRow r = new KeyboardRow();
+        KeyboardButton keyboardButton = new KeyboardButton("Send Location");
+        keyboardButton.setRequestLocation(true);
+        r.add(keyboardButton);
+        keyboardRows.add(r);
+        keyboardMarkup.setKeyboard(keyboardRows);
+        keyboardMarkup.setResizeKeyboard(true);
+        mes.setReplyMarkup(keyboardMarkup);
+        try {
+            execute(mes);
+        } catch (TelegramApiException e) {
+            throw new RuntimeException(e);
+        }
+    }
 
     //method to search for nearby locations via google maps
     private static ArrayList<String> getNearbyPlaces(String apiKey, double latitude, double longitude, int radius) throws IOException {
         final String NEARBY_SEARCH_URL = "https://maps.googleapis.com/maps/api/place/nearbysearch/json?" +
                 "location=" + latitude + "," + longitude +
                 "&radius=" + radius +
-                "&key=" + apiKey;
+                "&key=" + apiKey +
+                "&sensor=true" +
+                "&language=ru";
 
         URL url = new URL(NEARBY_SEARCH_URL);
         Scanner scanner = new Scanner(url.openStream());
@@ -153,12 +183,9 @@ public class TelegramBot extends TelegramLongPollingBot {
             for (JsonElement result : results) {
                 JsonObject place = result.getAsJsonObject();
                 JsonObject location = place.getAsJsonObject("geometry").getAsJsonObject("location");
-                double placeLat = location.get("lat").getAsDouble();
-                double placeLng = location.get("lng").getAsDouble();
                 String placeName = place.get("name").getAsString();
                 String vic = place.get("vicinity").getAsString();
-                String nearbyPlacesBuilder = "Place: " + placeName + ", Vicinity: " + vic + "\n" +
-                        "Latitude: " + placeLat + ", Longitude: " + placeLng + "\n\n";
+                String nearbyPlacesBuilder = vic + " (" + placeName + ")" ;
                 ans.add(nearbyPlacesBuilder);
             }
 
