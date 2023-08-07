@@ -2,7 +2,6 @@ package io.test.testAssylzhanBot.service;
 import io.test.testAssylzhanBot.config.BotConfig;
 import org.springframework.stereotype.Component;
 import org.telegram.telegrambots.bots.TelegramLongPollingBot;
-import org.telegram.telegrambots.meta.api.methods.send.SendLocation;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
 import org.telegram.telegrambots.meta.api.methods.updatingmessages.EditMessageText;
 import org.telegram.telegrambots.meta.api.objects.Location;
@@ -13,9 +12,6 @@ import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.InlineKe
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.KeyboardButton;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.KeyboardRow;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
-import com.google.maps.GeoApiContext;
-import com.google.maps.GeocodingApi;
-import com.google.maps.model.GeocodingResult;
 import java.util.*;
 
 import java.io.IOException;
@@ -67,13 +63,11 @@ public class TelegramBot extends TelegramLongPollingBot {
         else if (update.hasMessage() && update.getMessage().hasText()) {
             String messageText = update.getMessage().getText();
             long chatId = update.getMessage().getChatId();
-            switch (messageText) {
-                case "/start":
-                    String ans = "Welcome to this bot, " + update.getMessage().getChat().getFirstName() + "!!!" + "\n" + "Please send your geoposition!";
-                    sendMessageStart(chatId, ans);
-                    break;
-                default:
-                    sendMessage(chatId, "Sorry, command does not exist");
+            if (messageText.equals("/start")) {
+                String ans = "Welcome to this bot, " + update.getMessage().getChat().getFirstName() + "!!!" + "\n" + "Please send your geoposition!";
+                sendMessageStart(chatId, ans);
+            } else {
+                sendMessage(chatId, "Sorry, command does not exist");
             }
         }
         // else tries to give the full text of location if button is pressed
@@ -130,30 +124,30 @@ public class TelegramBot extends TelegramLongPollingBot {
 
     //method to send message
     private void sendMessage(long chatId, String toSend) {
-        SendMessage mes = new SendMessage();
-        mes.setChatId(String.valueOf(chatId));
-        mes.setText(toSend);
+        SendMessage mes = new SendMessage(String.valueOf(chatId), toSend);
         try {
             execute(mes);
         } catch (TelegramApiException e) {
             throw new RuntimeException(e);
         }
     }
-    private void sendMessageStart(long chatId, String toSend) {
-        SendMessage mes = new SendMessage();
-        mes.setChatId(String.valueOf(chatId));
-        mes.setText(toSend);
 
-        ReplyKeyboardMarkup keyboardMarkup = new ReplyKeyboardMarkup();
-        List<KeyboardRow> keyboardRows = new ArrayList<>();
-        KeyboardRow r = new KeyboardRow();
+    //reply keyboard markup button to request user's location
+    private void sendMessageStart(long chatId, String toSend) {
         KeyboardButton keyboardButton = new KeyboardButton("Send Location");
         keyboardButton.setRequestLocation(true);
+
+        KeyboardRow r = new KeyboardRow();
         r.add(keyboardButton);
+
+        List<KeyboardRow> keyboardRows = new ArrayList<>();
         keyboardRows.add(r);
-        keyboardMarkup.setKeyboard(keyboardRows);
-        keyboardMarkup.setResizeKeyboard(true);
+
+        ReplyKeyboardMarkup keyboardMarkup = new ReplyKeyboardMarkup(keyboardRows, true, false, false, null);
+
+        SendMessage mes = new SendMessage(String.valueOf(chatId), toSend);
         mes.setReplyMarkup(keyboardMarkup);
+
         try {
             execute(mes);
         } catch (TelegramApiException e) {
